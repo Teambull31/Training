@@ -1,9 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
 import type { Affinity, FeedCard, Movie } from './types';
 import { TOPICS } from './config';
 
-const client = new Anthropic({
-  apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
+const client = new Groq({
+  apiKey: import.meta.env.VITE_GROQ_API_KEY,
   dangerouslyAllowBrowser: true,
 });
 
@@ -80,25 +80,29 @@ Retourne un JSON avec exactement cette structure (SANS backticks, SANS markdown,
 
   let fullText = '';
 
-  const stream = client.messages.stream({
-    model: 'claude-opus-4-6',
+  const stream = await client.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
     max_tokens: 4096,
-    thinking: { type: 'adaptive' },
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
+    temperature: 0.7,
+    stream: true,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
   });
 
-  for await (const event of stream) {
-    if (
-      event.type === 'content_block_delta' &&
-      event.delta.type === 'text_delta'
-    ) {
-      fullText += event.delta.text;
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content ?? '';
+    if (delta) {
+      fullText += delta;
       onStream(fullText);
     }
   }
 
-  const parsed = JSON.parse(fullText.trim()) as {
+  // Strip markdown code fences if the model adds them
+  const cleaned = fullText.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+
+  const parsed = JSON.parse(cleaned) as {
     title: string;
     content: string;
     keyPoints: string[];

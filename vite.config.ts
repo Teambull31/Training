@@ -7,4 +7,5 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
+  base: '/Training/',
 })
